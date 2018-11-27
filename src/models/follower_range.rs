@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FollowerRange {
     pub min: u8,
     pub max: u8

@@ -1,9 +1,9 @@
 
 use crate::models::FilterQuery;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FilterRule {
-    pub id: u8,
+    pub id: Option<u8>,
     pub query: FilterQuery,
-    pub retweet: bool,
+    pub retweet: Option<bool>,
 }

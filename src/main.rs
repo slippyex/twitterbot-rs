@@ -1,98 +1,100 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
 
+extern crate clokwerk;
 extern crate rocket;
+#[macro_use]
 extern crate rocket_contrib;
-
 extern crate serde;
-
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 
-mod models;
+use std::time::Duration;
 
-use std::fs::File;
-use std::io::BufReader;
-use std::io::prelude::*;
+use clokwerk::{Scheduler, TimeUnits};
+use rocket_contrib::{Json, Value};
 
 use crate::models::FilterRule;
 
-use rocket_contrib::Json;
-use std::path::Path;
+mod bot;
+mod storage;
+mod models;
 
-
-fn read_file(filepath: &str) -> String {
-    let file = File::open(filepath)
-        .expect("could not open file");
-    let mut buffered_reader = BufReader::new(file);
-    let mut contents = String::new();
-    let _number_of_bytes: usize = match buffered_reader.read_to_string(&mut contents) {
-        Ok(number_of_bytes) => number_of_bytes,
-        Err(_err) => 0
-    };
-
-    contents
-}
-
-fn write_file(content: &str, filepath: &str) {
-    let path = Path::new(filepath);
-    let display = path.display();
-
-    // Open a file in write-only mode, returns `io::Result<File>`
-    let mut file = match File::create(&path) {
-        Err(why) => panic!("couldn't create {}: {}",
-                           display,
-                           why),
-        Ok(file) => file,
-    };
-
-    // Write the `LOREM_IPSUM` string to `file`, returns `io::Result<()>`
-    match file.write_all(content.as_bytes()) {
-        Err(why) => {
-            panic!("couldn't write to {}: {}", display,
-                   why)
-        },
-        Ok(_) => println!("successfully wrote to {}", display),
-    }
-}
-
-fn get_filters_from_storage() -> Vec<FilterRule> {
-    let file_content: String = read_file("./filter_rules.json");
-    match serde_json::from_str(&file_content) {
-        Ok(filters_converted) => filters_converted,
-        Err(_err) => Vec::new()
-    }
-
-}
 #[get("/status")]
-fn status() -> String {
-    format!("status!")
+fn status() -> Json<Value> {
+    Json(json!({"status": "ok"}))
 }
 
 #[get("/filters")]
 fn get_filters() -> Json<Vec<FilterRule>> {
-    let filters = get_filters_from_storage();
+    let filters = storage::get_filters_from_storage();
     Json(filters)
 }
 
 #[post("/filters", format = "application/json", data = "<filter>")]
 fn post_new_filter(filter: Json<FilterRule>) -> Json<Vec<FilterRule>> {
-    let mut filters: Vec<FilterRule> = get_filters_from_storage();
-    filters.push(filter.into_inner());
-    let content_str = serde_json::to_string_pretty(&filters).unwrap();
-    write_file(content_str.as_str(), "./filter_rules.json");
+    let mut filters: Vec<FilterRule> = storage::get_filters_from_storage();
+    let mut filter_obj = filter.into_inner();
+    filter_obj.id = match filters
+        .iter()
+        .max_by_key(|p| p.id) {
+        Some(obj) => Some(obj.id.unwrap() + 1),
+        None => Some(1)
+    };
+    filters.push(filter_obj);
+    storage::persist_filters_to_storage(filters.to_vec());
     Json(filters)
 }
 
-#[delete("/filters")]
-fn delete_filter() -> String {
-    format!("delete filter!")
+#[put("/filters/<id>", format = "application/json", data = "<filter>")]
+fn update_existing_filter(id: u8, filter: Json<FilterRule>) -> Json<Value> {
+    let mut filters = storage::get_filters_from_storage();
+    // check, if we already had that filter (update)
+    let found = filters
+        .iter()
+        .find(|p| p.id.unwrap() == id);
+    let result = match found {
+        Some(_) => {
+            delete_filter(id);
+            filters = storage::get_filters_from_storage();
+            let mut filter_obj = filter.into_inner();
+            filter_obj.id = Some(id);
+            filters.push(filter_obj);
+            storage::persist_filters_to_storage(filters);
+            json!({"updated": true})
+        },
+        None => json!({"updated": false})
+    };
+    Json(result)
+}
+
+#[delete("/filters/<id>")]
+fn delete_filter(id: u8) -> Json<Vec<FilterRule>> {
+    let mut filters: Vec<FilterRule> = storage::get_filters_from_storage();
+    filters = filters
+        .into_iter()
+        .filter(|i|i.id.unwrap() != id)
+        .collect::<Vec<_>>();
+    storage::persist_filters_to_storage(filters.to_vec());
+    Json(filters)
 }
 
 
 fn main() {
+    let mut scheduler = Scheduler::new();
+    scheduler.every(10.seconds()).run(|| bot::bot_invocation());
+    let thread_handle = scheduler.watch_thread(Duration::from_millis(1000));
+
     rocket::ignite()
-        .mount("/", routes![status, get_filters, post_new_filter, delete_filter])
+        .mount("/", routes![
+            status,
+            post_new_filter,
+            get_filters,
+            update_existing_filter,
+            delete_filter
+        ])
         .launch();
+
+    thread_handle.stop();
 }

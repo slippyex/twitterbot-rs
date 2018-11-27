@@ -1,0 +1,41 @@
+[
+  {
+    "id": 1,
+    "query": {
+      "q": "#bitcoin lang:en -filter:retweets",
+      "count": 50,
+      "result_type": "recent"
+    },
+    "filter": "!in_reply"
+  },
+  {
+    "id": 2,
+    "query": {
+      "q": "apple OR pear",
+      "count": 10,
+      "result_type": "recent"
+    },
+    "filter": "!in_reply",
+    "auto_like": true,
+    "auto_follow_new_users": true,
+    "follow_strategy": {
+      "type": "random",
+      "count": 5,
+      "follower_range": {
+        "min": 100,
+        "max": 2000
+      }
+    },
+    "retweet": false
+  },
+  {
+    "id": 3,
+    "query": {
+      "q": "funny media:video",
+      "count": 50,
+      "result_type": "recent"
+    },
+    "auto_like": true,
+    "auto_follow_new_users": true
+  }
+]

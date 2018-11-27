@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FilterQuery {
     pub q: String,
     pub count: u8,

@@ -1,6 +1,6 @@
 use crate::models::FollowerRange;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FollowStrategy {
     #[serde(rename = "type")]
     pub type_: String,
