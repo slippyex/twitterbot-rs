@@ -1,29 +1,37 @@
+
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
 use std::path::Path;
 use crate::models::FilterRule;
+use crate::models::BotConfig;
+
+
+
+use magic_crypt::MagicCrypt;
 
 use log::*;
 
 extern crate dirs;
 
 pub fn read_file(filepath: &str) -> String {
-    let file = match File::open(filepath) {
+    let content_read = match File::open(filepath) {
         Err(_why) => {
-            write_file(&"[]", filepath);
-            panic!("couldn't read filters at {:?}", filepath)
+            error!("could not read {}", filepath);
+            String::new()
         },
-        Ok(file) => file
+        Ok(file) => {
+            let mut buffered_reader = BufReader::new(file);
+            let mut contents = String::new();
+            let _number_of_bytes: usize = match buffered_reader.read_to_string(&mut contents) {
+                Ok(number_of_bytes) => number_of_bytes,
+                Err(_err) => 0
+            };
+            info!("read file {} successfully", filepath);
+            contents
+        }
     };
-    let mut buffered_reader = BufReader::new(file);
-    let mut contents = String::new();
-    let _number_of_bytes: usize = match buffered_reader.read_to_string(&mut contents) {
-        Ok(number_of_bytes) => number_of_bytes,
-        Err(_err) => 0
-    };
-    info!("read file {} successfully", filepath);
-    contents
+    content_read
 }
 
 pub fn write_file(content: &str, filepath: &str) {
@@ -48,15 +56,15 @@ pub fn write_file(content: &str, filepath: &str) {
 
 /// assembles a file path to the filter rules
 /// location
-fn assemble_filter_target() -> String {
+pub fn assemble_bot_filepath(actual_file: &str) -> String {
     let mut target = dirs::config_dir().unwrap();
     target.push("twitterbot-rs");
-    target.push("filter_rules.json");
+    target.push(actual_file);
     target.into_os_string().into_string().unwrap()
 }
 
 pub fn get_filters_from_storage() -> Vec<FilterRule> {
-    let file_content: String = read_file(assemble_filter_target().as_str());
+    let file_content: String = read_file(assemble_bot_filepath("filter_rules.json").as_str());
     match serde_json::from_str(&file_content) {
         Ok(filters_converted) => filters_converted,
         Err(_err) => Vec::new()
@@ -65,5 +73,25 @@ pub fn get_filters_from_storage() -> Vec<FilterRule> {
 
 pub fn persist_filters_to_storage(filters: Vec<FilterRule>) {
     let content_str = serde_json::to_string_pretty(&filters).unwrap();
-    write_file(content_str.as_str(), &assemble_filter_target().as_str());
+    write_file(content_str.as_str(), &assemble_bot_filepath("filter_rules.json").as_str());
 }
+
+pub fn get_config_from_storage() -> BotConfig {
+    let base64: String = read_file(assemble_bot_filepath("config.json").as_str());
+    let  master_pwd = read_file(&assemble_bot_filepath("master.dat"));
+    let mut mc: MagicCrypt = new_magic_crypt!(master_pwd, 256);
+    let file_content = mc.decrypt_base64_to_string(&base64).unwrap();
+    match serde_json::from_str(&file_content) {
+        Ok(persisted_config) => persisted_config,
+        Err(_err) => BotConfig::default()
+    }
+}
+
+pub fn persist_config_to_storage(config: BotConfig) {
+    let content_str = serde_json::to_string_pretty(&config).unwrap();
+    let  master_pwd = read_file(&assemble_bot_filepath("master.dat"));
+    let mut mc: MagicCrypt = new_magic_crypt!(master_pwd, 256);
+    let base64 = mc.encrypt_str_to_base64(content_str);
+    write_file(base64.as_str(), &assemble_bot_filepath("config.json").as_str());
+}
+

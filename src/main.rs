@@ -9,6 +9,11 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate passwords;
+
+#[macro_use]
+extern crate magic_crypt;
+
 
 use std::time::Duration;
 
@@ -82,6 +87,10 @@ fn delete_filter(id: u8) -> Json<Vec<FilterRule>> {
 
 
 fn main() {
+    // checks sanity of bot configuration
+    // and, if necessary, creates missing entries
+    bot::check_config();
+
     let mut scheduler = Scheduler::new();
     scheduler.every(10.seconds()).run(|| bot::bot_invocation());
     let thread_handle = scheduler.watch_thread(Duration::from_millis(1000));
