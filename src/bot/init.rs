@@ -5,6 +5,8 @@ use std::io::stdin;
 use std::io::Write;
 use crate::models::BotConfig;
 
+use crate::bot::verify_account;
+
 fn get_user_input(label: &str) -> String {
     let mut s= String::new();
     print!("{}", label);
@@ -42,6 +44,9 @@ fn edit_twitter_credentials(mut bot_config: BotConfig) {
     bot_config.twitter_access_key = get_user_input("Twitter Access Key: ");
     bot_config.twitter_token_secret = get_user_input("Twitter Token Secret: ");
 
+    let missing_information = verify_account(&bot_config);
+    bot_config.screen_name = missing_information.screen_name;
+    bot_config.user_id = missing_information.id;
     storage::persist_config_to_storage(bot_config);
 
 }
@@ -56,9 +61,11 @@ pub fn check_config() -> bool {
     if master_password == "" {
         edit_twitter_credentials(BotConfig::default());
     } else {
-        let mut bot_config = storage::get_config_from_storage();
+        let bot_config = storage::get_config_from_storage();
         if bot_config.twitter_consumer_key == "" {
             edit_twitter_credentials(bot_config);
+        } else {
+            println!("Welcome back, {} ... enjoy your ride with our Twitter Bot!", bot_config.screen_name);
         }
     }
 

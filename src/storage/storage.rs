@@ -6,8 +6,6 @@ use std::path::Path;
 use crate::models::FilterRule;
 use crate::models::BotConfig;
 
-
-
 use magic_crypt::MagicCrypt;
 
 use log::*;
