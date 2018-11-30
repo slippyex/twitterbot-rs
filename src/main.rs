@@ -14,6 +14,8 @@ extern crate passwords;
 #[macro_use]
 extern crate magic_crypt;
 
+#[macro_use]
+extern crate log;
 
 use std::time::Duration;
 
@@ -21,7 +23,7 @@ use clokwerk::{Scheduler, TimeUnits};
 use rocket_contrib::{Json, Value};
 
 use crate::models::FilterRule;
-
+use crate::storage::{get_json_from_storage, persist_json_to_storage};
 mod bot;
 mod storage;
 mod models;
@@ -33,13 +35,19 @@ fn status() -> Json<Value> {
 
 #[get("/filters")]
 fn get_filters() -> Json<Vec<FilterRule>> {
-    let filters = storage::get_filters_from_storage();
+    let filters = match get_json_from_storage::<Vec<FilterRule>>("filter_rules.json") {
+        Some(filters) => filters,
+        None => Vec::new()
+    };
     Json(filters)
 }
 
 #[post("/filters", format = "application/json", data = "<filter>")]
 fn post_new_filter(filter: Json<FilterRule>) -> Json<Vec<FilterRule>> {
-    let mut filters: Vec<FilterRule> = storage::get_filters_from_storage();
+    let mut filters = match get_json_from_storage::<Vec<FilterRule>>("filter_rules.json") {
+        Some(filters) => filters,
+        None => Vec::new()
+    };
     let mut filter_obj = filter.into_inner();
     filter_obj.id = match filters
         .iter()
@@ -48,13 +56,16 @@ fn post_new_filter(filter: Json<FilterRule>) -> Json<Vec<FilterRule>> {
         None => Some(1)
     };
     filters.push(filter_obj);
-    storage::persist_filters_to_storage(filters.to_vec());
+    persist_json_to_storage(filters.to_vec(), "filter_rules.json");
     Json(filters)
 }
 
 #[put("/filters/<id>", format = "application/json", data = "<filter>")]
 fn update_existing_filter(id: u8, filter: Json<FilterRule>) -> Json<Value> {
-    let mut filters = storage::get_filters_from_storage();
+    let filters = match get_json_from_storage::<Vec<FilterRule>>("filter_rules.json") {
+        Some(filters) => filters,
+        None => Vec::new()
+    };
     // check, if we already had that filter (update)
     let found = filters
         .iter()
@@ -62,11 +73,14 @@ fn update_existing_filter(id: u8, filter: Json<FilterRule>) -> Json<Value> {
     let result = match found {
         Some(_) => {
             delete_filter(id);
-            filters = storage::get_filters_from_storage();
+            let mut filters = match get_json_from_storage::<Vec<FilterRule>>("filter_rules.json") {
+                Some(filters) => filters,
+                None => Vec::new()
+            };
             let mut filter_obj = filter.into_inner();
             filter_obj.id = Some(id);
             filters.push(filter_obj);
-            storage::persist_filters_to_storage(filters);
+            persist_json_to_storage(filters.to_vec(), "filter_rules.json");
             json!({"updated": true})
         },
         None => json!({"updated": false})
@@ -76,12 +90,15 @@ fn update_existing_filter(id: u8, filter: Json<FilterRule>) -> Json<Value> {
 
 #[delete("/filters/<id>")]
 fn delete_filter(id: u8) -> Json<Vec<FilterRule>> {
-    let mut filters: Vec<FilterRule> = storage::get_filters_from_storage();
+    let mut filters = match get_json_from_storage::<Vec<FilterRule>>("filter_rules.json") {
+        Some(filters) => filters,
+        None => Vec::new()
+    };
     filters = filters
         .into_iter()
         .filter(|i|i.id.unwrap() != id)
         .collect::<Vec<_>>();
-    storage::persist_filters_to_storage(filters.to_vec());
+    persist_json_to_storage(filters.to_vec(), "filter_rules.json");
     Json(filters)
 }
 

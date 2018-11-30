@@ -3,12 +3,14 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
 use std::path::Path;
-use crate::models::FilterRule;
+
 use crate::models::BotConfig;
 
 use magic_crypt::MagicCrypt;
 
 use log::*;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 extern crate dirs;
 
@@ -61,17 +63,14 @@ pub fn assemble_bot_filepath(actual_file: &str) -> String {
     target.into_os_string().into_string().unwrap()
 }
 
-pub fn get_filters_from_storage() -> Vec<FilterRule> {
-    let file_content: String = read_file(assemble_bot_filepath("filter_rules.json").as_str());
-    match serde_json::from_str(&file_content) {
-        Ok(filters_converted) => filters_converted,
-        Err(_err) => Vec::new()
-    }
+pub fn get_json_from_storage<T>(name: &str) -> Option<T> where T: DeserializeOwned {
+    let file_content: String = read_file(assemble_bot_filepath(name).as_str());
+    serde_json::from_str::<T>(&file_content).ok()
 }
 
-pub fn persist_filters_to_storage(filters: Vec<FilterRule>) {
-    let content_str = serde_json::to_string_pretty(&filters).unwrap();
-    write_file(content_str.as_str(), &assemble_bot_filepath("filter_rules.json").as_str());
+pub fn persist_json_to_storage<T>(filters: T, name: &str) where T: Serialize {
+    let content_str = serde_json::to_string_pretty::<T>(&filters).unwrap();
+    write_file(content_str.as_str(), &assemble_bot_filepath(name).as_str());
 }
 
 pub fn get_config_from_storage() -> BotConfig {

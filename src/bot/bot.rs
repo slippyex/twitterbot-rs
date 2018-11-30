@@ -3,7 +3,8 @@ extern crate futures;
 extern crate tokio;
 extern crate tokio_core;
 
-use crate::storage::{get_config_from_storage, get_filters_from_storage};
+
+use crate::storage::{get_config_from_storage, get_json_from_storage};
 
 use self::tokio_core::reactor;
 use self::tokio_core::reactor::Core;
@@ -12,15 +13,24 @@ use self::egg_mode::search::ResultType;
 
 use crate::models::TwitterVerify;
 use crate::models::BotConfig;
+use crate::models::FilterRule;
 
 pub fn bot_invocation() {
     println!("bot invocation goes here");
-    let _filters = get_filters_from_storage();
+    let _filters = match get_json_from_storage::<Vec<FilterRule>>("filter_rules.json") {
+        Some(filters) => filters,
+        None => Vec::new()
+    };
     let mut core = reactor::Core::new().unwrap();
     let _config = get_config_from_storage();
 
     let token = get_token(&_config);
-    search_tweets(&mut core, &token);
+//    let mut tweets: ;
+
+    for filter in _filters.iter() {
+        info!("Iterating over filter {:?}", filter.query);
+        search_tweets(filter, &mut core, &token);
+    }
 }
 
 pub fn verify_account(_config: &BotConfig) -> TwitterVerify {
@@ -41,22 +51,26 @@ pub fn verify_account(_config: &BotConfig) -> TwitterVerify {
     }
 }
 
-fn search_tweets(core: &mut Core, token: &egg_mode::Token) {
+
+fn search_tweets(filter: &FilterRule, core: &mut Core, token: &egg_mode::Token) {
 
     let handle = core.handle();
-    let user = core.run(egg_mode::verify_tokens(&token, &handle));
 
-    let rustlang = core.run(egg_mode::user::show("rustlang", token, &handle)).unwrap();
+    let result_type = match filter.query.result_type.as_ref() {
+        "mixed" => ResultType::Mixed,
+        "popular" => ResultType::Popular,
+        _ => ResultType::Recent
+    };
 
-    let search = core.run(search::search("rustlang")
-        .result_type(ResultType::Recent)
+    let search = core.run(search::search(filter.query.q.clone())
+        .result_type(result_type)
+        .count(filter.query.count)
         .call(&token, &handle))
         .unwrap();
 
     for tweet in &search.statuses {
         println!("(@{}) {}", tweet.user.as_ref().unwrap().screen_name, tweet.text);
     }
-    println!("{:?}", rustlang);
 }
 
 
