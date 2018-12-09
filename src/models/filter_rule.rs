@@ -1,4 +1,3 @@
-
 use crate::models::FilterQuery;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

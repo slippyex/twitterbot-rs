@@ -1,17 +1,19 @@
-use passwords::PasswordGenerator;
-use crate::storage;
-use std::io::stdout;
-use std::io::stdin;
-use std::io::Write;
 use crate::models::BotConfig;
+use crate::storage;
+use passwords::PasswordGenerator;
+use std::io::stdin;
+use std::io::stdout;
+use std::io::Write;
 
 use crate::bot::verify_account;
 
 fn get_user_input(label: &str) -> String {
-    let mut s= String::new();
+    let mut s = String::new();
     print!("{}", label);
     let _ = stdout().flush();
-    stdin().read_line(&mut s).expect("Did not enter a correct string");
+    stdin()
+        .read_line(&mut s)
+        .expect("Did not enter a correct string");
     if let Some('\n') = s.chars().next_back() {
         s.pop();
     }
@@ -33,7 +35,10 @@ fn get_master_password() -> String {
             strict: true,
         };
         master_pwd = pg.generate_one().unwrap();
-        storage::write_file(master_pwd.as_str(), &storage::assemble_bot_filepath("master.dat"));
+        storage::write_file(
+            master_pwd.as_str(),
+            &storage::assemble_bot_filepath("master.dat"),
+        );
     }
     master_pwd
 }
@@ -48,7 +53,6 @@ fn edit_twitter_credentials(mut bot_config: BotConfig) {
     bot_config.screen_name = missing_information.screen_name;
     bot_config.user_id = missing_information.id;
     storage::persist_config_to_storage(bot_config);
-
 }
 ///
 /// Checks and validates twitter credentials
@@ -65,7 +69,10 @@ pub fn check_config() -> bool {
         if bot_config.twitter_consumer_key == "" {
             edit_twitter_credentials(bot_config);
         } else {
-            println!("Welcome back, {} ... enjoy your ride with our Twitter Bot!", bot_config.screen_name);
+            println!(
+                "Welcome back, {} ... enjoy your ride with our Twitter Bot!",
+                bot_config.screen_name
+            );
         }
     }
 
